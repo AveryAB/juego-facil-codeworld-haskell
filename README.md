@@ -1,4 +1,4 @@
-  Esto es un juego de una persona, hay un tablero donde se mueve una ficha en forma de “L”, como el caballo en el juego de Ajedrez. 
+  Esto es un juego de un jugador, hay un tablero donde se mueve una ficha en forma de “L”, como el caballo en el juego de Ajedrez. 
 Esta ficha no puede repetir casilla durante el juego. El objetivo es visitar todas las casillas del tablero. 
 
 
