@@ -1,0 +1,114 @@
+{-# LANGUAGE OverloadedStrings #-}     --COPIAR LINEA, ES IMPORTANTE!! previene errores con "KeyPress"
+import CodeWorld
+
+--Datos de tablero:(nºFilas, nºColumnas, posición Robot, Lista de casillas rojas, Lista de opciones para proximo movimiento )
+type Estado = (Int, Int, Robot, [Rojo], [Opcion])
+--Posición de Robot (tupla con coordenadas de la casilla), (x,y)
+type Robot = (Int, Int)  
+--Tupla con las posiciones de las casillas rojas (robot ya ha estado en esta casilla y no puede volver)
+type Rojo = (Int, Int)   
+--Opciones de movimientos que puede tomar el robot según su pocición. Robot se mueve en forma de "L", como el caballo en ajedrez y no repite casilla
+type Opcion = (Event, Int, Int)
+        --(Evento/botón a presionar, coordenada x, y)    x, y coordenadas de la casilla al que puede moverse el robot 
+
+
+--pintaNegro CREA TABLERO DE JUEGO dados dos enteros positivosm n y m
+celdaEn :: Int -> Int-> Picture
+celdaEn n m = coloured (black) (translated (fromIntegral n + 0.5) (fromIntegral m + 0.5) (solidRectangle 1 1 ))
+
+fila :: Int -> Int-> Picture 
+fila 0 m = celdaEn 0 m
+fila n  m = celdaEn (n-1) m  & fila ( n -1) m
+
+pintaNegro :: Int -> Int -> Picture
+pintaNegro n 0 = blank
+pintaNegro n m = fila n m & pintaNegro n (m-1)
+
+--DESCOMENTAR PARA EJECUTAR:
+--main :: IO()
+--main = drawingOf ((pintaNegro 8 8) & coordinatePlane)
+
+
+-- pintaRobot DIBUJA ROBOT EN TABLERO COMO CIRCULO AMARILLO sobre casilla roja, dado un tipo Robot (posicion de casilla con robot)
+pintaRobot :: Robot -> Picture
+pintaRobot (i,j) =  coloured yellow (translated (fromIntegral i - 0.5 ) (fromIntegral j - 0.5 ) (solidCircle 0.5)) & coloured (red) (translated (fromIntegral i - 0.5 ) (fromIntegral j - 0.5 ) (solidRectangle 1 1 ))
+
+--main :: IO()
+--main = drawingOf ((pintaRobot (1, 8)) & (pintaNegro 8 8) & coordinatePlane)
+
+--pintaRojo DIBUJA CASILLAS ROJAS DE TABLERO dada una lista con "rojos" (coordenadas de casillas rojas)
+pintaRojo :: [Rojo] -> Picture
+pintaRojo [] = blank
+pintaRojo (r:lr) = prAux r & pintaRojo lr
+
+prAux :: Rojo -> Picture
+prAux (i,j) = coloured (red) (translated (fromIntegral i - 0.5 ) (fromIntegral j - 0.5 ) (solidRectangle 1 1 ))
+
+--main :: IO()
+--main = drawingOf ((pintaRojo [(2, 6), (1, 8)]) & (pintaRobot (4, 5)) & (pintaNegro 8 8) & coordinatePlane) 
+
+
+-- pintaOpcion DIBUJA LAS CASILLAS OPCIONES EN VERDE dado la lista de opciones
+pintaOpcion :: [Opcion] -> Picture
+pintaOpcion [] = blank
+pintaOpcion ((KeyPress t, i, j):lo) = coloured (black) (translated (fromIntegral i - 0.5 ) (fromIntegral j - 0.5 ) (scaled 0.5 0.5 (text t)) ) & coloured (green) (translated (fromIntegral i - 0.5 ) (fromIntegral j - 0.5 ) (solidRectangle 1 1 )) & pintaOpcion lo
+
+--main :: IO()
+--main = drawingOf ((pintaOpcion [(KeyPress "1",1,4), (KeyPress "2",3,4), (KeyPress "3",4,5), (KeyPress "4",4,7), (KeyPress "5",3,8)]) & (pintaRojo [(1, 8)]) & (pintaRobot (2, 6)) & (pintaNegro 8 8) & coordinatePlane)
+
+
+-- pintaEstado DIBUJA TODO LO ANTERIOR dado un Estado :
+pintaEstado :: Estado -> Picture
+pintaEstado (n, m, ij, lr, lo) = pintaRobot ij & pintaRojo lr & pintaOpcion lo & pintaNegro n m  
+
+--main :: IO()
+--main = drawingOf ((pintaEstado (8, 8, (2, 6), [(1, 8)], [(KeyPress "1",1,4), (KeyPress "2",3,4), (KeyPress "3",4,5), (KeyPress "4",4,7), (KeyPress "5",3,8)])) & coordinatePlane)
+  
+
+--calculaOpciones CREA LISTA DE OPCIONES DE MOVIMIENTO PARA ROBOT dado la posicion del robot y el tamaño del tablero y lista de rojos
+calculaOpciones :: Int -> Int -> [Rojo] -> Robot -> [Opcion]
+calculaOpciones n m lr rob = filter (fRojo lr) (filter (fDentro n m) (calOpcAux rob))
+
+calOpcAux :: Robot -> [Opcion]
+calOpcAux (i, j) = [(KeyPress "1", i-1, j-2), (KeyPress "2", i-2, j-1), (KeyPress "3", i-2, j+1), (KeyPress "4", i-1, j+2), (KeyPress "5", i+1, j+2), (KeyPress "6", i+2, j+1), (KeyPress "7", i+2, j-1), (KeyPress "8", i+1, j-2)] 
+
+fRojo :: [Rojo] -> Opcion -> Bool
+fRojo lr (_, i, j) = not ((i,j) `elem` lr)
+
+fDentro :: Int -> Int -> Opcion -> Bool
+fDentro n m (_, i, j) = 0<i && 1<j && i<=n && j<=m+1
+
+erAux :: [Opcion] -> [Rojo]-> [Rojo]
+erAux [] res = res
+erAux ((k, i, j):lo) res = erAux lo [(i, j)]++res 
+
+--main :: IO()
+--main = drawingOf ((pintaEstado (8, 8, (2, 6), [(1, 8)], calculaOpciones 8 8 [(1, 8)] (2, 6))) & coordinatePlane)
+
+
+-- manejaEvento DETERMINA EL PROXIMO ESTADO dado un evento y un estado
+manejaEvento :: Event -> Estado -> Estado
+manejaEvento eve (n, m, (i,j), lr, lo) = (n, m, (newRob eve lo (i,j)), [(i,j)]++lr, calculaOpciones n m ([(i,j)]++lr) (newRob eve lo (i, j)))
+
+newRob :: Event -> [Opcion] ->Robot -> Robot
+newRob _ [] rob = undefined
+newRob eve lo rob = if filter (filOpc eve) lo ==  [] then rob else sacarRob (filter (filOpc eve) lo)
+
+sacarRob :: [Opcion] -> Robot
+sacarRob ((_, i, j):_) = (i, j)
+
+filOpc :: Event -> Opcion -> Bool
+filOpc eve (k, _, _) = eve == k 
+
+--main :: IO()
+--main = interactionOf (8, 8, (1, 8), [], (calculaOpciones 8 8 [] (1, 8))) (\_ estado -> estado) manejaEvento pintaEstado
+
+
+-- juego INICIA UN NUEVO JUEGO dadas las dimensiones del tablero
+juego :: Int -> Int -> IO()
+juego n m = interactionOf (n, m, (1, m+1), [], (calculaOpciones n m [] (1, m+1)))
+            (\_ estado -> estado) manejaEvento pintaEstado
+
+--DESCOMENTA PARA INICIAR UNA PARTIDA AL EJECUTAR:
+main :: IO()
+main = juego 8 8
